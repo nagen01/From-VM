@@ -1,0 +1,335 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Dec 21 11:58:06 2019
+
+@author: nb01
+"""
+#Importing python arango library
+from arango import ArangoClient
+
+#Initializing arango client
+client = ArangoClient(hosts = 'http://localhost:8529')
+
+#Connect _system database, This gives access to root user
+db = client.db('test', username = 'nagendra', password = '1432')
+
+db.graphs()
+
+#Connect _system database, This gives access to root user
+sys_db = client.db('_system', username = 'root', password = '1432')
+
+#Creating a new database if not found
+if not sys_db.has_database('test'):
+    sys_db.create_database(
+        name = 'test',
+        users = [
+            {'username':'nagendra','password':'1432','active':True},
+            {'username':'rajat','password':'1432','active':True},
+            {'username':'mayank','password':'1432','active':True},
+        ],
+    )
+if not sys_db.has_database('test1'):
+    sys_db.create_database(
+        name = 'test1',
+        users = [
+            {'username':'mohini','password':'1432','active':True},
+        ],
+    )
+#Listing database
+sys_db.databases()
+
+#Delete database
+#sys_db.delete_database('test')
+
+#Opening the database with root user
+db_root_test = client.db('test', username = 'root', password = '1432')
+db_root_test1 = client.db('test1', username = 'root', password = '1432')
+
+#Opening the database with database user:
+db_user_nagendra = client.db('test', username = 'nagendra', password = '1432')
+db_user_mayank = client.db('test', username = 'mayank', password = '1432')
+
+db_user_mohini = client.db('test1', username = 'mohini', password = '1432')
+
+#Making sure for read and write permission for user:
+sys_db.update_permission(username='nagendra', permission='rw', database='test')
+
+#For further processing connecting with user_nagendra with name as db
+db = client.db('test', username = 'nagendra', password = '1432')
+
+#Checking various things in database
+db.name
+db.username
+db.version()
+db.status()
+db.details()
+db.collections()
+db.graphs()
+db.engine()
+
+#List all the collections
+db_user_nagendra.collections()
+
+#Createa a new collection if it does not present
+if db.has_collection('students'):
+    students = db.collection('students')
+else:
+    students = db.create_collection('students')
+
+# Retrieve collection properties.
+students.name
+students.db_name
+students.properties()
+students.revision()
+students.statistics()
+students.checksum()
+students.count()
+
+# Perform various operations.
+students.load()
+students.unload()
+students.truncate()
+students.configure(journal_size=3000000)
+
+# Delete the collection.
+#db.delete_collection('students')
+
+#Add a hash index to the collection
+students.add_hash_index(fields = ['name'], unique = False)
+
+#Insert new documents into the collection
+students.insert({'name':'user1', 'age': 19})
+students.insert({'name':'user2', 'age': 18})
+students.insert({'name':'user3', 'age': 20})
+
+#Execute AQL query, this return result in cursor:
+cursor = db.aql.execute('FOR doc IN students RETURN doc')
+
+#Iterate through the cursor to get the document:
+student_names = [student['name'] for student in cursor] 
+student_names
+
+# Create some test documents to play around with.
+lola = {'_key': 'lola', 'GPA': 3.5, 'first': 'Lola', 'last': 'Martin'}
+abby = {'_key': 'abby', 'GPA': 3.2, 'first': 'Abby', 'last': 'Page'}
+john = {'_key': 'john', 'GPA': 3.6, 'first': 'John', 'last': 'Kim'}
+emma = {'_key': 'emma', 'GPA': 4.0, 'first': 'Emma', 'last': 'Park'}
+
+# Insert a new document. This returns the document metadata.
+metadata = students.insert(lola)
+assert metadata['_id'] == 'students/lola'
+assert metadata['_key'] == 'lola'
+
+# Check if documents exist in the collection in multiple ways.
+assert students.has('lola') and 'john' not in students
+
+# Retrieve the total document count in multiple ways.
+assert students.count() == len(students)
+
+print(students.count())
+
+# Insert multiple documents in bulk.
+students.import_bulk([abby, john, emma])
+
+# Retrieve one or more matching documents.
+for student in students.find({'first': 'John'}):
+    assert student['_key'] == 'john'
+    assert student['GPA'] == 3.6
+    assert student['last'] == 'Kim'
+
+# Retrieve a document by key.
+students.get('john')
+
+# Retrieve a document by ID.
+students.get('students/john')
+
+# Retrieve a document by body with "_id" field.
+students.get({'_id': 'students/john'})
+
+# Retrieve a document by body with "_key" field.
+students.get({'_key': 'john'})
+
+# Retrieve multiple documents by ID, key or body.
+students.get_many(['abby', 'students/lola', {'_key': 'john'}])
+
+# Update a single document.
+lola['GPA'] = 2.6
+students.update(lola)
+
+# Update one or more matching documents.
+students.update_match({'last': 'Park'}, {'GPA': 3.0})
+
+# Replace a single document.
+emma['GPA'] = 3.1
+students.replace(emma)
+
+# Replace one or more matching documents.
+becky = {'first': 'Becky', 'last': 'Solis', 'GPA': '3.3'}
+students.replace_match({'first': 'Emma'}, becky)
+
+# Delete a document by key.
+students.delete('john')
+
+# Delete a document by ID.
+students.delete('students/lola')
+
+# Delete a document by body with "_id" or "_key" field.
+students.delete(emma)
+
+# Delete multiple documents. Missing ones are ignored.
+students.delete_many([abby, 'john', 'students/lola'])
+
+# Iterate through all documents and update individually.
+for student in students:
+    student['GPA'] = 4.0
+    student['happy'] = True
+    students.update(student)
+#You can manage documents via database API wrappers also, 
+#but only simple operations (i.e. get, insert, update, replace, delete) 
+#are supported and you must provide document IDs instead of keys:
+    
+#Playing with ID instead of key
+
+# Create some test documents to play around with.
+# The documents must have the "_id" field instead.
+lola = {'_id': 'students/lola', 'GPA': 3.5}
+abby = {'_id': 'students/abby', 'GPA': 3.2}
+john = {'_id': 'students/john', 'GPA': 3.6}
+emma = {'_id': 'students/emma', 'GPA': 4.0}
+
+# Insert a new document.
+metadata = db.insert_document('students', lola)
+assert metadata['_id'] == 'students/lola'
+assert metadata['_key'] == 'lola'
+
+#students.delete('lola')
+students.delete_many([emma, 'john'])
+assert db.has_document(emma) is True
+# Check if a document exists.
+assert db.has_document(john) is True
+
+# Get a document (by ID or body with "_id" field).
+db.document('students/lola')
+db.document(abby)
+
+# Update a document.
+lola['GPA'] = 3.6
+db.update_document(lola)
+
+# Replace a document.
+lola['GPA'] = 3.4
+db.replace_document(lola)
+
+# Delete a document (by ID or body with "_id" field).
+db.delete_document('students/lola')
+
+#Indexes
+
+# Create a new collection named "cities".
+cities = db.create_collection('cities')
+
+# List the indexes in the collection.
+cities.indexes()
+
+# Add a new hash index on document fields "continent" and "country".
+index = cities.add_hash_index(fields=['continent', 'country'], unique=True)
+
+# Add new fulltext indexes on fields "continent" and "country".
+index = cities.add_fulltext_index(fields=['continent'])
+index = cities.add_fulltext_index(fields=['country'])
+
+# Add a new skiplist index on field 'population'.
+index = cities.add_skiplist_index(fields=['population'], sparse=False)
+
+# Add a new geo-spatial index on field 'coordinates'.
+index = cities.add_geo_index(fields=['coordinates'])
+
+# Add a new persistent index on field 'currency'.
+index = cities.add_persistent_index(fields=['currency'], sparse=True)
+
+# Add a new TTL (time-to-live) index on field 'currency'.
+index = cities.add_ttl_index(fields=['ttl'], expiry_time=200)
+
+# Indexes may be added with a name that can be referred to in AQL queries.
+index = cities.add_hash_index(fields=['country'], name='my_hash_index')
+
+# Delete the last index from the collection.
+cities.delete_index(index['id'])
+
+#Graph:
+
+#List the graphs
+db.graphs()
+
+#Create a new graph if it does not exists:
+if db.has_graph('school'):
+    school = db.graphs('school')
+else:
+    school = db.create_graph('school')
+    
+# Retrieve various graph properties.
+school.name
+school.db_name
+school.vertex_collections()
+school.edge_definitions()
+
+# Delete the graph.
+#db.delete_graph('school')
+
+#Create edge definitions if not exists
+if not school.has_edge_definition('teach'):
+    teach = school.create_edge_definition(
+        edge_collection = 'teach',
+        from_vertex_collections = ['teachers'],
+        to_vertex_collections = ['teachers']
+    )
+
+#List the no of edge definitions
+school.edge_definitions()
+
+#Replace the edge definitions:
+school.replace_edge_definition(
+    edge_collection = 'teach',
+    from_vertex_collections = ['teachers'],
+    to_vertex_collections = ['lectures']        
+)
+
+#Delete edge edge definitions:
+#school.delete_edge_definition('teach', purge=True)
+
+#Graph traversing:
+teach = school.edge_collection('teach')
+teachers = school.vertex_collection('teachers')
+lectures = school.vertex_collection('lectures')
+
+# Insert vertices into the graph.
+teachers.insert({'_key': 'hari', 'name': 'Professor hari'})
+teachers.insert({'_key': 'jon', 'name': 'Professor jon'})
+lectures.insert({'_key': 'CSC101', 'name': 'Introduction to CS'})
+lectures.insert({'_key': 'MAT223', 'name': 'Linear Algebra'})
+lectures.insert({'_key': 'STA201', 'name': 'Statistics'})
+
+# Insert edges into the graph.
+teach.insert({'_from': 'teachers/jon', '_to': 'lectures/CSC101'})
+teach.insert({'_from': 'teachers/hari', '_to': 'lectures/STA201'})
+teach.insert({'_from': 'teachers/jon', '_to': 'lectures/MAT223'})
+
+# Traverse the graph in outbound direction, breath-first.
+Jon_coourses = school.traverse(
+    start_vertex='teachers/jon',
+    direction='outbound',
+    strategy='bfs',
+    edge_uniqueness='global',
+    vertex_uniqueness='global',
+)
+
+Hari_courses = school.traverse(
+    start_vertex='teachers/hari',
+    direction='outbound',
+    strategy='bfs',
+    edge_uniqueness='global',
+    vertex_uniqueness='global',
+)
+
+
